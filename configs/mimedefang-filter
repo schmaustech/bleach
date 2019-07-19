@@ -1,0 +1,442 @@
+#########################################################################
+#                                                                       #
+# Bleach (mimedefang-filter) Version 3.3                             #
+#                                                                       #
+# Bleach filter script.                     				#
+#                                                                       #
+# Copyright (C) 2002-2004 Benjamin Schmaus & Sara Schmaus - SchmausTech #
+#                                                                       #
+# This program may be distributed under the terms of the GNU General    #
+# Public License, Version 2, or (at your option) any later version.     #
+#                                                                       #
+# This program was derived from sample mimedefang-filter script.	#
+#                                                                       #
+#########################################################################
+use DBI;
+$dsn="DBI:mysql:database=spam";
+$dbu="root";
+$dbp="T0925!cm!sql1";
+$AdminAddress = 'bleach@bleach.schmaustech.com';
+$AdminName = 'Bleach Administrator';
+$DaemonAddress = 'smmsp@bleach.schmaustech.com';
+$AddWarningsInline = 0;
+md_graphdefang_log_enable('local4');
+$Stupidity{"flatten"} = 0;
+$Stupidity{"NoMultipleInlines"} = 0;
+$SALocalTestsOnly = 0;
+
+sub filter_bad_filename ($) {
+	my($entity) = @_;
+	my($bad_exts, $re,$EXTDB,$new_exts);
+	$new_exts="";
+	$sth = $dbh->prepare("select extension from extensions where customer = '$tdomain'");
+	$sth->execute();
+	while (($EXTDB)=$sth->fetchrow_array()) {
+		$new_exts .= $EXTDB . "|";
+	}
+	$sth->finish();
+	if ($new_exts eq "") {
+		$new_exts="zzz";
+	}
+	chop ($new_exts);
+	$bad_exts = "($new_exts)";
+	$re = '(\{)|(\})|(\.'. $bad_exts .')\.*([^-A-Za-z0-9_.]|$)';
+	md_graphdefang_log("BADEXT: $tdomain  $bad_exts");
+	return re_match($entity, $re);
+}
+
+#sub filter_relay ($$$) {
+#        my ($hostip, $hostname, $helo) = @_;
+#        my $addr = '';
+#        my $network_string = '';
+#        my $mask_string = '';
+#        my %exempt_subnets = (
+#                '206.131.14.0', '255.255.255.0',
+#                '206.131.13.0', '255.255.255.0',
+#                '206.131.12.0', '255.255.255.0',        
+#                '206.131.48.0', '255.255.255.0',
+#                '206.131.49.0', '255.255.255.0',
+#                '206.131.50.0', '255.255.255.0',
+#                '206.131.51.0', '255.255.255.0',
+#                '206.131.52.0', '255.255.255.0',
+#                '206.131.53.0', '255.255.255.0',
+#                '206.131.54.0', '255.255.255.0',
+#                '206.131.55.0', '255.255.255.0',
+#		 '206.131.150.0', '255.255.255.0',
+#		 '206.131.151.0', '255.255.255.0',
+#   		 '206.131.152.0', '255.255.255.0',		
+#        );
+#        $addr = inet_aton $hostip;
+#        while (($network_string, $mask_string) = each %exempt_subnets) {
+#                my $network = inet_aton $network_string;
+#                my $mask = inet_aton $mask_string;
+#                if (($addr & $mask) eq $network) {
+#                        return ('ACCEPT_AND_NO_MORE_FILTERING', 'ok');
+#                }
+#        }
+#        return ('CONTINUE', 'ok');
+#}
+
+sub message_contains_virus () {
+	return message_contains_virus_sophos()   if ($Features{'Virus:SOPHOS'});
+	return (wantarray ? (0, 'ok', 'ok') : 0);
+}
+
+sub entity_contains_virus ($) {
+	my($e) = @_;
+	return entity_contains_virus_sophos($e)   if ($Features{'Virus:SOPHOS'});
+	return (wantarray ? (0, 'ok', 'ok') : 0);
+}
+
+sub filter_begin () {
+	my($recip);
+	foreach $recip (@Recipients) {
+		$recip =~ tr/<>//d;
+		$recip =~ lc($recip);
+		if (stream_by_recipient()) {
+			return;
+		}
+	}
+}
+
+sub filter ($$$$) {
+	return if message_rejected();
+	my($entity, $fname, $ext, $type) = @_;
+	my($attach,$enavirus,$visize,$qesh,$qesb,$recipuser);
+	local($tdomain,$hits2);
+        $drop_exts = qr/\.(?:pif|scr|bat)(?:\.|$)/;
+        if (re_match($entity, $drop_exts)) {
+                md_graphdefang_log("VIRUS ALERT: dropping file $fname from $RelayAddr");
+                $dbh->disconnect;
+                return action_discard();
+        }
+	$Recipients[0] =~ tr/A-Z/a-z/;
+	($recipuser,$tdomain) = split(/\@/,$Recipients[0]);
+
+#	if ($tdomain ne "schmaustech.com" && $tdomain ne "schmaustech.net") { return action_accept(); }
+
+	$dbh = DBI->connect($dsn,$dbu,$dbp) or die "Access Failed";
+        $sth = $dbh->prepare("select attach,enavirus,visize,qesh,qesb from configuration where customer='$tdomain'");
+        $sth->execute();
+        ($attach,$enavirus,$visize,$qesh,$qesb)=$sth->fetchrow_array();
+        $sth->finish();
+
+#        $recipfile = "/var/mail/$recipuser";
+#        $recipsize = (-s $recipfile);
+#        if (defined($recipsize)) {
+#        	if ($recipsize > 20000000) {
+#              		md_graphdefang_log("OVERLIMIT:$recipsize");
+#                       return action_bounce("Mailbox exceeds 20MB size limit. Please try again later.");
+#               }
+#        }
+
+    	if (($SuspiciousCharsInHeaders) && $qesh eq "2") {
+       		md_graphdefang_log('Suspicious Characters In Headers');
+		$hits2 = "SH";
+		$Subject = "Suspicious Characters In Header";
+		filter_end_insert_database();
+        	action_quarantine_entire_message();
+		$dbh->do("update counters set emails=emails+1 where customer='TOTAL'");
+                $dbh->do("update counters set emails=emails+1 where customer='$tdomain'");
+		$dbh->do("update counters set quarantine=quarantine+1 where customer='$tdomain'");
+                $dbh->do("update counters set quarantine=quarantine+1 where customer='TOTAL'");
+		$dbh->disconnect;
+        	return action_discard();
+   	}
+
+        if (($SuspiciousCharsInBody) && $qesb eq "2") {
+              	md_graphdefang_log('Suspicious Characters In Body');
+		$hits2 = "SB";
+		$Subject = "Suspicious Characters In Body";
+		filter_end_insert_database();
+              	action_quarantine_entire_message();
+                $dbh->do("update counters set emails=emails+1 where customer='TOTAL'");
+                $dbh->do("update counters set emails=emails+1 where customer='$tdomain'");
+                $dbh->do("update counters set quarantine=quarantine+1 where customer='$tdomain'");
+                $dbh->do("update counters set quarantine=quarantine+1 where customer='TOTAL'");
+		$dbh->disconnect;
+     		return action_discard();
+        }
+
+	md_graphdefang_log("DEBUG: Attachments: $attach  Scan for Virus: $enavirus Size: $visize");
+	if ($enavirus eq "2") {
+		my $attachsize = (stat($entity->bodyhandle->path))[7];
+		my($code, $category, $action);
+		if ($attachsize < $visize) {
+			md_graphdefang_log("VIRUS SCAN SIZE = $attachsize");
+			($code, $category, $action) = message_contains_virus();
+		}
+        	$FoundVirus = ($category eq "virus");
+		if ($FoundVirus) {
+			my($code, $category, $action,$a);
+			$VirusScannerMessages = "";
+			($code, $category, $action) = entity_contains_virus($entity);
+			if ($category eq "virus") {
+				$dbh->do("update counters set virus=virus+1 where customer='TOTAL'");
+				$dbh->do("update counters set virus=virus+1 where customer='$tdomain'");
+				$sth = $dbh->prepare("select evirus from configuration where customer='$tdomain'");
+				$sth->execute();
+				($a)=$sth->fetchrow_array();
+				$sth->finish();
+				$hits2 = "V";
+				if ($a eq '1') {
+					filter_end_insert_database();
+					return action_quarantine($entity,"\n");
+				} elsif ($a eq '2') {
+					filter_end_insert_database();
+					return action_quarantine($entity, "A known virus was discovered and deleted.\n$VirusScannerMessages\n\n");
+				} elsif ($a eq '3') {
+		        		$dbh->do("update counters set emails=emails+1 where customer='TOTAL'");
+                       			$dbh->do("update counters set emails=emails+1 where customer='$tdomain'");	
+					$dbh->disconnect;
+					return action_discard();
+				} else {
+					filter_end_insert_database();
+					$dbh->disconnect;
+					return action_quarantine($entity,"\n");
+				}
+			}
+		}
+	}
+	if ($attach eq "2") {
+		if (filter_bad_filename($entity)) {
+			return action_quarantine($entity, "An attachment named $fname was removed from this document. #1111.\n");
+		}
+		if (re_match($entity, '\.eml')) {
+			return action_quarantine($entity, "A non-multipart attachment named $fname was removed from this document. #1222.\n");
+		}
+	}
+	$dbh->disconnect;
+	return action_accept();
+}
+
+sub defang_warning ($$) {
+	my($oldfname, $fname) = @_;
+	return
+		"An attachment named '$oldfname' was converted to '$fname'.\n" .
+		"Recover the file by right-clicking on the attachment and Save As\n" .
+		"'$oldfname'\n";
+}
+
+sub filter_end_insert_database {
+	my($dtrecipients,$dtsubject,$dtsender);
+	$qdir = get_quarantine_dir();
+	$qdir =~ s/\/var\/spool\/MIMEDefang\///g;
+	$dtrecipients = $Recipients[0];
+	$dtsender = $Sender;
+	$dtsubject = $Subject;
+	$dtrecipients =~ s/\n$|\>|\<|\#|To: |\&//g;
+	$dtrecipients =~ s/\s+/ /g;
+	$dtrecipients =~ s/[\s]*$//g;
+	$dtrecipients =~ tr/\000-\037//d;
+	$dtrecipients =~ tr/A-Z/a-z/;
+	$dtsender =~ s/\n$|\>|\<|\#|From: |\&//g;
+	$dtsender =~ s/\s+/ /g;
+	$dtsender =~ s/[\s]*$//g;
+	$dtsender =~ tr/\000-\037//d;
+	$dtsender =~ tr/A-Z/a-z/;
+	$dtsubject =~ s/\n$|\>|\<|\#|Subject: |\&|\'//g;
+	$dtsubject =~ s/\s+/ /g;
+	$dtsubject =~ s/[\s]*$//g;
+	$dtsubject =~ tr/\000-\037//d;
+	$dtsubject =~ tr/A-Z/a-z/;
+	$dbh->do("INSERT INTO quarantine VALUES('$tdomain','$qdir','$dtrecipients','$dtsender','$dtsubject','$hits2')");
+}
+
+sub filter_list {
+	if ($caction eq '1') {
+		action_add_part($entity, "text/plain", "-suggest","$report\n","SpamReport.txt", "inline");
+		return;
+	}
+	if ($caction eq '2') {
+		action_quarantine_entire_message();
+		filter_end_insert_database();
+		action_discard();
+		$dbh->do("update counters set quarantine=quarantine+1 where customer='$tdomain'");
+		$dbh->do("update counters set quarantine=quarantine+1 where customer='TOTAL'");
+		return;
+	}
+	if ($caction eq '3') {
+		action_quarantine_entire_message();
+		filter_end_insert_database();
+		action_bounce($reply);
+		$dbh->do("update counters set quarantine=quarantine+1 where customer='$tdomain'");
+		$dbh->do("update counters set quarantine=quarantine+1 where customer='TOTAL'");
+		return;
+	}
+	if ($caction eq '4') {
+		action_discard();
+		$dbh->do("update counters set discards=discards+1 where customer='$tdomain'");
+		$dbh->do("update counters set discards=discards+1 where customer='TOTAL'");
+		return;
+	}
+	if ($caction eq '5') {
+		action_bounce($reply);
+		return;
+	}
+	if ($caction eq '6') {
+		if ($hits2 > $domainhits2) {
+			action_discard();
+			$dbh->do("update counters set discards=discards+1 where customer='$tdomain'");
+			$dbh->do("update counters set discards=discards+1 where customer='TOTAL'");
+		} else {
+			action_quarantine_entire_message();
+			filter_end_insert_database();
+			action_discard();
+			$dbh->do("update counters set quarantine=quarantine+1 where customer='$tdomain'");
+			$dbh->do("update counters set quarantine=quarantine+1 where customer='TOTAL'");
+		}
+		return;
+	}	
+}
+
+sub filter_end ($) {
+	my($entity) = @_;
+	local($hits2,$junk,$tdomain,$sdomain,$rdomain,$tflag,$tflagdom,$caction,$domainhits1,$domainhits2,$override,$submat,$subtmp,$submata,$redhtml,$aado,$aadot,$addot,$addo,$overact);
+        #$Recipients[0] =~ s/aliase\@schmaustech\.com/schmaus\@schmaustech\.com/gi;
+	return if message_rejected();
+	if ($Features{"SpamAssassin"}) {
+        	if (-s "./INPUTMSG" < 100*1024) {
+			$dbh = DBI->connect($dsn,$dbu,$dbp) or die "Access Failed";
+			($junk,$tdomain)=split(/\@/,$Recipients[0]);
+			#if ($tdomain ne "schmaustech.com" && $tdomain ne "schmaustech.net") { return; }
+			$Sender =~ s/\>|\<//g;
+			$Sender =~ tr/A-Z/a-z/;
+			if ($Sender eq "") { $Sender = "UNKNOWN"; }
+			($junk,$sdomain)=split(/\@/,$Sender);
+			$dbh->do("update counters set emails=emails+1 where customer='TOTAL'");
+			$dbh->do("update counters set emails=emails+1 where customer='$tdomain'");
+                        $sth = $dbh->prepare("select filter,action,thresh,discard,over,ssm,ssma,redhtml,aado,aadot,addot,addo,overact from configuration where customer='$tdomain'");
+                        $sth->execute();
+                        ($cfilter,$caction,$domainhits1,$domainhits2,$override,$submat,$submata,$redhtml,$aado,$aadot,$addot,$addo,$overact)=$sth->fetchrow_array();
+                        $sth->finish();
+			md_graphdefang_log("DEBUG: Overrides: $override");
+			if ($override eq "2") {
+        			$sth = $dbh->prepare("select flag from domain where (customer='$tdomain') AND ((domain='$sdomain') OR (domain='$Sender'))");
+        			$sth->execute();
+        			($tflag)=$sth->fetchrow_array();
+				$sth->finish();
+                                if (defined($tflag) && $tflag eq "0") {
+                                        $sth->finish();
+                                        $dbh->disconnect;
+                                        return;
+                                }
+                                if (defined($tflag) && $tflag eq "1") {
+                                        $sth->finish();
+					if ($overact eq "1") {
+                        			action_quarantine_entire_message();
+						$hits2 = "SD";
+                        			filter_end_insert_database();
+                        			$dbh->do("update counters set quarantine=quarantine+1 where customer='$tdomain'");
+                        			$dbh->do("update counters set quarantine=quarantine+1 where customer='TOTAL'");
+					}
+					if ($overact eq "2") {
+                                        	$dbh->do("update counters set discards=discards+1 where customer='$tdomain'");
+                                        	$dbh->do("update counters set discards=discards+1 where customer='TOTAL'");
+					}
+                                        $dbh->disconnect;
+                                        return action_discard();
+                                }  
+			}
+                        if ($submat eq "2") {
+                                $subtmp = $Subject;
+                                $subtmp =~ s/\n$|\>|\<|\#|\;|\)|\(|\[|\]|\{|\}|\*|\.|\:|\?|\+|\-|\=|\%|\^|\!|Subject: |\&|\'//g;
+                                $subtmp =~ s/\s+/ /g;
+                                $subtmp =~ s/[\s]*$//g;
+                                $subtmp  =~ tr/\000-\037//d;
+                                $subtmp =~ tr/A-Z/a-z/;
+                                $sth = $dbh->prepare("select subject from subject where customer='$tdomain'");
+                                $sth->execute();
+                                while (($tflag)=$sth->fetchrow_array()) {
+                                        if (defined($tflag) && $subtmp ne "" && $subtmp =~ /$tflag/) {
+                                                if (defined($submata) && $submata eq "1") {
+                                                        action_quarantine_entire_message();
+							$hits2 = "SM";
+                                                        filter_end_insert_database();
+                                                        $dbh->do("update counters set quarantine=quarantine+1 where customer='$tdomain'");
+                                                        $dbh->do("update counters set quarantine=quarantine+1 where customer='TOTAL'");
+                                                        $sth->finish();
+                                                        $dbh->disconnect;
+                                                        return action_discard();
+                                                }
+                                                if (defined($submata) && $submata eq "2") {
+                                                        $dbh->do("update counters set discards=discards+1 where customer='$tdomain'");
+                                                        $dbh->do("update counters set discards=discards+1 where customer='TOTAL'");
+                                                        $sth->finish();
+                                                        $dbh->disconnect;
+                                                      	return action_discard();
+                                                }
+                                        }
+                                }
+                                $sth->finish();
+                        }
+        		my($hits, $req, $names, $report) = spam_assassin_check();
+			$sth = $dbh->prepare("select flag from domain where (customer='$tdomain') AND ((domain='$sdomain') OR (domain='$Sender'))");
+			$sth->execute();
+			($tflagdom)=$sth->fetchrow_array();
+			$sth->finish();
+                        if (!defined($tflagdom) && $aado eq "2" && $hits < $aadot) {
+                                $dbh->do("INSERT INTO domain VALUES('$tdomain','$Sender','0')");
+                        } 
+                        if (!defined($tflagdom) && $addo eq "2" && $hits > $addot) {
+                               	$dbh->do("INSERT INTO domain VALUES('$tdomain','$Sender','1')");
+                        } 
+			action_change_header("X-Spam-Score", "$hits");
+			$hits2 = $hits;
+			md_graphdefang_log($hits,$cfilter,$caction);
+			if ($hits > $domainhits1) {
+				if ($cfilter eq '2') {
+					$Recipients[0] =~ tr/A-Z/a-z/;
+					$sth = $dbh->prepare("select aux1 from userlist where (customer='$tdomain') AND (user='$Recipients[0]')");
+					$sth->execute();
+					($tempaux1)=$sth->fetchrow_array();
+					$sth->finish();
+	                                if (defined($tempaux1) && $tempaux1 eq '1') {
+						chomp($tempaux1);
+						$tempaux1 =~ tr/\015\012//d;
+                                        	$sth = $dbh->prepare("select action,thresh,discard from userprefs where customer='$Recipients[0]'");
+                                        	$sth->execute();
+                                        	($caction,$domainhits1,$domainhits2)=$sth->fetchrow_array();
+                                        	$sth->finish();
+			                        $sth = $dbh->prepare("select flag from userdomain where (customer='$Recipients[0]') AND (domain='$sdomain')");
+       				                $sth->execute();
+                        			($tflag)=$sth->fetchrow_array();
+                        			$sth->finish();
+                        			if (defined($tflag) && $tflag eq "1") {
+							if ($overact eq "1") {
+						        action_quarantine_entire_message();
+							$hits2 = "D";
+                        				filter_end_insert_database();
+                        				$dbh->do("update counters set quarantine=quarantine+1 where customer='$tdomain'");
+                        				$dbh->do("update counters set quarantine=quarantine+1 where customer='TOTAL'");
+							}
+							if ($overact eq "2") {
+                                			$dbh->do("update counters set discards=discards+1 where customer='$tdomain'");
+                                			$dbh->do("update counters set discards=discards+1 where customer='TOTAL'");
+							}
+                                			$dbh->disconnect;
+                                			return action_discard();
+                        			}
+                        			if (defined($tflag) && $tflag eq "0") {
+                                			$dbh->disconnect;
+                                			return;
+                        			}
+
+                                        }
+					if (defined($tempaux1)) {
+						filter_list();	
+					}
+				}
+				if ($cfilter eq '1') {
+					filter_list();
+				}
+			}
+			$dbh->disconnect;
+			if ($redhtml eq "2") {
+				remove_redundant_html_parts($entity);
+			}
+		}
+	}
+}
+### DO NOT REMOVE LAST LINE ###
+1;

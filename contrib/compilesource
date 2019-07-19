@@ -1,0 +1,30 @@
+#!/bin/bash
+
+/bin/mv /usr/local/apache/cgi-bin/config.cgi /usr/local/apache/cgi-bin/config.src
+/bin/mv /usr/local/apache/cgi-bin/login.cgi /usr/local/apache/cgi-bin/login.src
+/bin/mv /usr/local/apache/cgi-bin/logout.cgi /usr/local/apache/cgi-bin/logout.src
+/bin/mv /usr/local/apache/cgi-bin/quarantine.cgi /usr/local/apache/cgi-bin/quarantine.src
+/bin/mv /usr/local/apache/cgi-bin/status.cgi /usr/local/apache/cgi-bin/status.src
+/bin/mv /usr/local/apache/cgi-bin/userquarantine.cgi /usr/local/apache/cgi-bin/userquarantine.src
+
+/usr/bin/perlcc -o /usr/local/apache/cgi-bin/config.cgi /usr/local/apache/cgi-bin/config.src 
+/usr/bin/perlcc -o /usr/local/apache/cgi-bin/login.cgi /usr/local/apache/cgi-bin/login.src 
+/usr/bin/perlcc -o /usr/local/apache/cgi-bin/logout.cgi /usr/local/apache/cgi-bin/logout.src
+/usr/bin/perlcc -o /usr/local/apache/cgi-bin/quarantine.cgi /usr/local/apache/cgi-bin/quarantine.src
+/usr/bin/perlcc -o /usr/local/apache/cgi-bin/status.cgi /usr/local/apache/cgi-bin/status.src
+/usr/bin/perlcc -o /usr/local/apache/cgi-bin/userquarantine.cgi /usr/local/apache/cgi-bin/userquarantine.src
+
+/bin/mv /usr/local/spamscout/install /usr/local/spamscout/install.src
+/bin/mv /usr/local/spamscout/spamscout /usr/local/spamscout/spamscout.src
+
+/usr/bin/perlcc -o /usr/local/spamscout/install /usr/local/spamscout/install.src
+/usr/bin/perlcc -o /usr/local/spamscout/spamscout /usr/local/spamscout/spamscout.src
+
+/bin/rm -r -f /usr/local/apache/cgi-bin/config.src
+/bin/rm -r -f /usr/local/apache/cgi-bin/login.src
+/bin/rm -r -f /usr/local/apache/cgi-bin/logout.src
+/bin/rm -r -f /usr/local/apache/cgi-bin/quarantine.src
+/bin/rm -r -f /usr/local/apache/cgi-bin/status.src
+/bin/rm -r -f /usr/local/apache/cgi-bin/userquarantine.src
+/bin/rm -r -f /usr/local/spamscout/install.src
+/bin/rm -r -f /usr/local/spamscout/spamscout.src

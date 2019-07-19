@@ -1,0 +1,373 @@
+
+Bleach 1.0 SPAM Filtering System
+
+This program may be distributed under the terms of the GNU General Public License, Version 2, or (at your option) any later version.
+
+Copyright (C) June 2004 Benjamin Schmaus - SchmausTech
+
+Bleach works with Sendmail, MIMEdefang and Spamassassin on Linux and UNIX systems.
+
+This document is divided into 3 parts:
+1) Installation (Doc not complete)
+2) Database Layout
+3) History Changes
+
+############################
+#       INSTALLATION       # 
+############################
+
+1) Install Apache in /usr/local/apache.
+
+2) Apache's root web path should be /usr/local/apache/htdocs.
+
+3) Apache's cgi-bin path should be /usr/local/apache/cgi-bin.
+
+4) Follow the MIMEDefang HOWTO to install MIMEDefang and supporting applications.  This
+   is found at http://www.rudolphtire.com/mimedefang-howto/.  Please be aware that when
+   you compile MIMEDefang, you must do configure with the following options:
+   --with-spooldir=/tmpfs and --with-quarantinedir=/var/spool/MIMEDefang. Also keep in
+   mind that /tmpfs should be a tmpfs file system for maximum performance.
+
+5) Install and configure MySQL.
+
+6) Install the following Perl modules: DBI, CGI, CGI::Cookie, Net::Pop3, GD::Graph::pie.  
+
+7) Unzip and untar Bleach package in /usr/local (Will create a directory Bleach).
+
+8) Run the install script (Linux Tested Only) in the bleach directory to install
+   database and support files.
+
+9) The install script creates /tmpfs off of your root filesystem.  However, to increase
+   performance you may want to mount /tmpfs as a ram disk.  In other words execute the
+   following:  mount tmpfs /tmpfs -t tmpfs -o size=64m (ex. 64mb ram disk ).
+
+10) Browse to IP/DNS name of the server and begin using.  Browser must support frames,
+    cookies and javascript.
+
+Note: You must follow these instructions exactly or the system may not work.  You can send me
+      questions at schmaustech@yahoo.com and I will try to help out.
+
+Broken:  The pop3 authentication is broken until you put the required information into the authentication table in the spam db.  I will be adding a configuration page to facilitate this in the future.
+
+Known to work with:  Solaris, Redhat Linux and Solarisx86.
+
+Help: schmastech@yahoo.com
+
+
+#############################
+#   MySQL Database Layout   #
+#############################
+
+spam database
++----------------+
+| Tables_in_spam |
++----------------+
+| configuration  |
+| counters       |
+| customer       |
+| domain         |
+| extensions     |
+| quarantine     |
+| subject        |
+| tmpaccess      |
+| tmpdb          |
+| userdomain     |
+| userlist       |
+| userprefs      |
++----------------+
+
+configuration table
++----------+--------------+------+-----+---------+-------+
+| Field    | Type         | Null | Key | Default | Extra |
++----------+--------------+------+-----+---------+-------+
+| customer | varchar(255) | YES  |     | NULL    |       |
+| filter   | char(2)      | YES  |     | NULL    |       |
+| action   | char(2)      | YES  |     | NULL    |       |
+| thresh   | char(2)      | YES  |     | NULL    |       |
+| discard  | char(2)      | YES  |     | NULL    |       |
+| qage     | char(2)      | YES  |     | NULL    |       |
+| evirus   | char(2)      | YES  |     | NULL    |       |
+| attach   | char(2)      | YES  |     | NULL    |       |
+| enavirus | char(2)      | YES  |     | NULL    |       |
+| over     | char(2)      | YES  |     | NULL    |       |
+| ssm      | char(2)      | YES  |     | NULL    |       |
+| visize   | varchar(15)  | YES  |     | NULL    |       |
+| ssma     | char(2)      | YES  |     | NULL    |       |
+| redhtml  | char(2)      | YES  |     | NULL    |       |
+| qesh     | char(2)      | YES  |     | NULL    |       |
+| qesb     | char(2)      | YES  |     | NULL    |       |
+| aado     | char(2)      | YES  |     | NULL    |       |
+| aadot    | char(3)      | YES  |     | NULL    |       |
+| addot    | char(3)      | YES  |     | NULL    |       |
+| addo     | char(2)      | YES  |     | NULL    |       |
+| overact  | char(2)      | YES  |     | NULL    |       |
++----------+--------------+------+-----+---------+-------+
+
+subject table
++----------+--------------+------+-----+---------+-------+
+| Field    | Type         | Null | Key | Default | Extra |
++----------+--------------+------+-----+---------+-------+
+| customer | varchar(255) | YES  |     | NULL    |       |
+| subject  | varchar(255) | YES  |     | NULL    |       |
++----------+--------------+------+-----+---------+-------+
+
+counters table
++------------+--------------+------+-----+---------+-------+
+| Field      | Type         | Null | Key | Default | Extra |
++------------+--------------+------+-----+---------+-------+
+| emails     | int(4)       | YES  |     | NULL    |       |
+| quarantine | int(4)       | YES  |     | NULL    |       |
+| discards   | int(4)       | YES  |     | NULL    |       |
+| virus      | int(4)       | YES  |     | NULL    |       |
+| customer   | varchar(255) | YES  |     | NULL    |       |
++------------+--------------+------+-----+---------+-------+
+
+customer table
++-----------+--------------+------+-----+---------+-------+
+| Field     | Type         | Null | Key | Default | Extra |
++-----------+--------------+------+-----+---------+-------+
+| customer  | varchar(255) | YES  |     | NULL    |       |
+| username  | varchar(255) | YES  |     | NULL    |       |
+| password  | varchar(255) | YES  |     | NULL    |       |
+| validator | varchar(12)  | YES  |     | NULL    |       |
+| aux1      | char(2)      | YES  |     | NULL    |       |
+| aux2      | char(2)      | YES  |     | NULL    |       |
++-----------+--------------+------+-----+---------+-------+
+
+domain table
++----------+--------------+------+-----+---------+-------+
+| Field    | Type         | Null | Key | Default | Extra |
++----------+--------------+------+-----+---------+-------+
+| customer | varchar(255) | YES  |     | NULL    |       |
+| domain   | varchar(255) | YES  |     | NULL    |       |
+| flag     | char(1)      | YES  |     | NULL    |       |
++----------+--------------+------+-----+---------+-------+
+
+quarantine table
++-----------+--------------+------+-----+---------+-------+
+| Field     | Type         | Null | Key | Default | Extra |
++-----------+--------------+------+-----+---------+-------+
+| customer  | varchar(255) | YES  |     | NULL    |       |
+| predate   | varchar(30)  | YES  |     | NULL    |       |
+| recipient | varchar(255) | YES  |     | NULL    |       |
+| sender    | varchar(255) | YES  |     | NULL    |       |
+| subject   | varchar(255) | YES  |     | NULL    |       |
+| score     | char(3)      | YES  |     | NULL    |       |
++-----------+--------------+------+-----+---------+-------+
+
+extensions table
++-----------+--------------+------+-----+---------+-------+
+| Field     | Type         | Null | Key | Default | Extra |
++-----------+--------------+------+-----+---------+-------+
+| customer  | varchar(255) | YES  |     | NULL    |       |
+| extension | char(3)      | YES  |     | NULL    |       |
++-----------+--------------+------+-----+---------+-------+
+
+tmpdb table
++----------+--------------+------+-----+---------+-------+
+| Field    | Type         | Null | Key | Default | Extra |
++----------+--------------+------+-----+---------+-------+
+| customer | varchar(255) | YES  |     | NULL    |       |
+| aux1     | varchar(255) | YES  |     | NULL    |       |
+| aux2     | varchar(255) | YES  |     | NULL    |       |
+| aux3     | varchar(255) | YES  |     | NULL    |       |
+| aux4     | varchar(255) | YES  |     | NULL    |       |
++----------+--------------+------+-----+---------+-------+
+
+userlist table
++----------+--------------+------+-----+---------+-------+
+| Field    | Type         | Null | Key | Default | Extra |
++----------+--------------+------+-----+---------+-------+
+| customer | varchar(255) | YES  |     | NULL    |       |
+| user     | varchar(255) | YES  |     | NULL    |       |
+| aux1     | char(1)      | YES  |     | NULL    |       |
++----------+--------------+------+-----+---------+-------+
+
+tmpaccess table
++----------+--------------+------+-----+---------+-------+
+| Field    | Type         | Null | Key | Default | Extra |
++----------+--------------+------+-----+---------+-------+
+| customer | varchar(255) | YES  |     | NULL    |       |
++----------+--------------+------+-----+---------+-------+
+
+userprefs table
++----------+--------------+------+-----+---------+-------+
+| Field    | Type         | Null | Key | Default | Extra |
++----------+--------------+------+-----+---------+-------+
+| customer | varchar(255) | YES  |     | NULL    |       |
+| filter   | char(2)      | YES  |     | NULL    |       |
+| action   | char(2)      | YES  |     | NULL    |       |
+| thresh   | char(2)      | YES  |     | NULL    |       |
+| discard  | char(2)      | YES  |     | NULL    |       |
+| qage     | char(2)      | YES  |     | NULL    |       |
+| aux1     | char(2)      | YES  |     | NULL    |       |
+| aux2     | char(2)      | YES  |     | NULL    |       |
+| aux3     | char(2)      | YES  |     | NULL    |       |
++----------+--------------+------+-----+---------+-------+
+
+userdomain table
++----------+--------------+------+-----+---------+-------+
+| Field    | Type         | Null | Key | Default | Extra |
++----------+--------------+------+-----+---------+-------+
+| customer | varchar(255) | YES  |     | NULL    |       |
+| domain   | varchar(255) | YES  |     | NULL    |       |
+| flag     | char(1)      | YES  |     | NULL    |       |
++----------+--------------+------+-----+---------+-------+
+
+authentication table
++------------+--------------+------+-----+---------+-------+
+| Field      | Type         | Null | Key | Default | Extra |
++------------+--------------+------+-----+---------+-------+
+| customer   | varchar(255) | YES  |     | NULL    |       |
+| authtype   | char(2)      | YES  |     | NULL    |       |
+| authserver | varchar(255) | YES  |     | NULL    |       |
+| authport   | varchar(10)  | YES  |     | NULL    |       |
++------------+--------------+------+-----+---------+-------+
+
+
+###############################
+# Changes in Version Releases #
+###############################
+
+Version .10 - Added status page.
+Version .10 - Added configurations for MIMEDefang & SpamAssassin.
+Version .10 - Added whitelist configuration.
+Version .10 - Added blacklist configuration.
+Version .10 - Added services page (restart, reboot & shutdown).
+Version .11 - Added Quarantine list (date, recipient, subject & sender).
+Version .12 - Removed telnet wrappers and replace with C code wrapper.
+Version .13 - Added status.cgi realtime updated instead of cronjob dependent.
+Version .14 - Revised many single scripts into one script that is called by C code wrapper.
+Version .15 - Added Forward emails in quarantine.
+Version .15 - Added View emails in quarantine.
+Version .16 - Fixed forward emails to allow to forward to any email address.
+Version .16 - Fixed quarantine emails view when quarantined email was virus.
+Version .16 - Fixed formatting on report.cgi in action box.
+Version .16 - Added link to forward emails from view quarantined email.
+Version .16 - Revised black and white lists into one cgi called domain.cgi (domain lists).
+Version .16 - Added all links to use graphic buttons.  Also made some other cosmetic changes to web pages.
+Version .17 - Added filtering by user instead of domain.
+Version .17 - Added interface for userlist to be filtered.
+Version .18 - Revised spam1 and spam2 scripts into cleanmail script.
+Version .18 - Revised filter comments in mime.1,mime.2,mime.3 & mime.4.
+Version .18 - Added filter by domains or user list option in config settings (Could only filter by user since v1.7).
+Version .18 - Revised status script into cleanmail.
+Version .18 - Fixed matching issues where userlist may have ^M on end of lines which affected matching in filter.
+Version .18 - Fixed bug in resend subroutine when spam1 and spam2 were folded into cleanmail script.
+Version .19 - Revised IP access fields in config.cgi by removal.
+Version .19 - Added date, time, subject, recipient and sender fields in view.cgi.
+Version .19 - Added login/logout pages.
+Version .19 - Added authentication via cookies.  Updated all cgi's to respond to cookies.
+Version .19 - Revised service.cgi and domain.cgi into config.cgi.
+Version .19 - Added user manager interface to config.cgi Needed to create authentication users.
+Version .19 - Revised index.html, merged menu.html and title.html.
+Version .19 - Revised view.cgi, forward.cgi, report.cgi and cleanmail (i.e. reduced open/close of files).
+Version .19 - Added new filter rule (Quarantine-Discard-Auto Discard).
+Version .19 - Added Auto Discard value field in config.cgi.
+Version .20 - Revised config.cgi to handle all configuration data with MySQL instead of text files. 
+Version .20 - Revised report.cgi to handle all data with MySQL.
+Version .20 - Added sort functions into report.cgi to sort data in quarantine via MySQL.
+Version .20 - Revised view.cgi to handle temp file transactions via MySQL.
+Version .20 - Revised login.cgi to handle temp file transactions via MySQL.
+Version .20 - Added search option in quarantine/report.cgi.
+Version .20 - Added an install script which install .cgi's, htdocs and installs MySQL database structure.
+Version .20 - Added email, quarantine and discard counters to status page.
+Version .21 - Added totals display to status.cgi.
+Version .21 - Revised wrapper code by reducing number of coded lines.
+Version .21 - Added quarantine age option in configs.  Items in quarantine can be deleted after x number of days.
+Version .21 - Added Search link to title menubar.
+Version .21 - Added Quarantine link to bottom of Quarantine page.
+Version .21 - Revised cleanmail to not use spamqdir temp file.  Reduced number of lines and more efficient.
+Version .21 - Added forward address field to autofill with original recipient in forward.cgi.
+Version .22 - Added multiple domain filtering on one box.
+Version .22 - Revised web cgi scripts to accomodate multiple domain interaction.
+Version .22 - Revised main filter to accomodate mutiple domain filtering.
+Version .22 - Revised core Cleanmail script for multi filtering.
+Version .22 - Added passing of second argument to wrapper.
+Version .22 - Revised up headings on webpages by moving into tables.
+Version .22 - Fixed issue where uppercase quarantined emails were not appearing in quarantine.
+Version .22 - Added virus counter to status.cgi.
+Version .23 - Added per domain counter stats in status.cgi.
+Version .23 - Revised reboot and shutdown in config.cgi so they are disabled.
+Version .23 - Revised clear domains option to only clear domains counter and not servers counter.
+Version .23 - Fixed install script where database fields were missing.
+Version .23 - Fixed matching issue with domains on whitelist that had caps in the sender domain.
+Version .23 - Revised all link buttons and removed link border where border appeared.
+Version .23 - Added DCC spam checking. Requires dccproc to be install on server.
+Version .23 - Revised Quarantine aging to only age to a max of 10 days.
+Version .24 - Revised MIMEDefang to run temp files in TMPFS file system.
+Version .24 - Revised filter to put quarantined messages into database in realtime (excluding message body).
+Version .24 - Revised bleach to delete quarantined items out of database when directories are deleted.
+Version .24 - Revised bleach paths from cleanmail to bleach in all scripts.
+Version .24 - Added attach spam report to filter list options.
+Version .25 - Added syslog configuration for spamfilter.log to install script.
+Version .25 - Added customer install script for additional customers.
+Version .25 - Revised scripts by removing commented out lines.
+Version .25 - Added X-Spam-Score to headers of all emails.
+Version .25 - Added User quarantine interface.
+Version .25 - Added Score column to admin and user quarantine.
+Version .25 - Revised threshold values on quarantine and discard values.
+Version .25 - Revised quarantine age values from max of 10 to 6 days.
+Version .26 - Revised quarantine database queries when applying a search.
+Version .26 - Added quarantine paging.  Displays 50 per page.
+Version .26 - Added bleachclean script and install as crontab during installation.  Script checks max aging and removes files.
+Version .26 - Added record total to quarantine pages.
+Version .26 - Revised temp ENTIRE_MESSAGE files to be copied into tmpfs for quicker access.
+Version .26 - Fixed undefined sender variable in filter.
+Version .26 - Added Upgrade script to update files on upgrades.
+Version .26 - Revised Upgrade, Install and Customer Install scripts into one install script.
+Version .27 - Fixed problem with quarantine page display where records were overlapping.
+Version .27 - Fixed permission problem with /tmpfs in install script.
+Version .27 - Fixed install script issue where filter was not restarted upon upgrade/install.
+Version .27 - Added First and Last buttons to quarantine pages.
+Version .27 - Revised bleachclean script by incorporating into bleach script.
+Version .28 - Revised quarantine age to 5 days and spamscount crontab aging to 5 days.
+Version .28 - Fixed problem with brackets in search parameters in bleach script.
+Version .28 - Fixed bleach script issue where quarantined viruses were not being removed from quarantine on a delete all selection.
+Version .28 - Fixed config.cgi so if selections have not been chosen none will be prefilled.
+Version .28 - Fixed antivirus so it auto updates definitions nightly.
+Version .28 - Fixed mimedefang-filter so quarantined virus emails would be inserted into database when found to have a virus.
+Version .29 - Revised mimedefang-filter by reducing lines of code making it more efficient.
+Version .29 - Fixed virus counter errors where viruses were being discarded but not added to email total.
+Version .30 - Removed quarantine aging code from status.cgi subroutine of bleach script.
+Version .30 - Revised mimedefang-filter for more efficiency.
+Version .30 - Revised mimedefang-filter to only virus scan messages that are smaller than 5mb
+Version .30 - Revised report.cgi, forward.cgi and view.cgi into quarantine.cgi.
+Version .30 - Revised config.cgi verbage for option fields.
+Version .30 - Added configuration page for individual users to set their configuration.
+Version .30 - Added to bleach script function to clean out tmpdb and tmpaccess databases when cron runs at night to clear aged files.
+Version .30 - Added db upgrade option to install script.
+Version .30 - Added custom preference filtering to mimedefang-filter.
+Version .30 - Added quarantine aging code to cron subroutine of bleach script.
+Version .30 - Added percentage based statistics to status.cgi.
+Version .31 - Revised documentation.
+Version .31 - Revised mimedefang-filter to accomodate changes in config.cgi.
+Version .31 - Revised install script to accomodate database changes.
+Version .31 - Revised login.cgi to differentiate between an admin and user with client input.
+Version .31 - Fixed issue when admin database was updated would disable user preferences if set.
+Version .31 - Fixed divide by zero error in status.cgi.
+Version .31 - Added enable/disable flags in config.cgi for virus scanning, attachment scanning and domain overrides.
+Version .31 - Added subject match feature in config.cgi.
+Version .31 - Added email virus scan size field in config.cgi.
+Version .31 - Added redundant removal of html option in config.cgi.
+Version .31 - Added option to quarantine suspicious headers.
+Version .31 - Added option to quarantine suspicious body tags.
+Version .32 - Revised userquarantine.cgi filter options.
+Version .32 - Revised bayesian configuration in spamassassin.
+Version .32 - Revised threshold and discard values in config.cgi for finer selection of values.
+Version .32 - Fixed critical flaw in userquarantine.cgi delete all function.  
+Version .32 - Fixed issue in userquarantine.cgi where logout timeout was not functioning properly.
+Version .32 - Fixed issue in filter where pattern match on scr/bat/pif files were not anchored in reg/ex.
+Version .32 - Fixed issue in userquarantine.cgi where last button would not work.
+Version .32 - Added auto-add feature for deny and allow domains.
+Version .32 - Added exempt auto-add feature for deny and allow domains.
+Version .32 - Added allow/deny domain action of quarantine or discard.
+Version .33 - Revised config.cgi text area width size and verbage.
+Version .33 - Revised allow/deny domain lists to allow full email addresses.
+Version .33 - Revised quarantine codes in quarantine.cgi and userquarantine.cgi.
+Version .33 - Revised status.cgi page layout.
+Version .33 - Fixed subject matching so it matches on all instances of a word or phrase.
+Version .33 - Added pie chart graphs to status.cgi.
+Version .50 - Merged cgi scripts into one script.  Many routines were rewritten.
+Version .60 - Cookie/Authentication portion rewritten.
+Version 1.0 - Release to Public.

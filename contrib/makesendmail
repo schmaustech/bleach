@@ -1,0 +1,8 @@
+cd /usr/local/source/sendmail*/cf/cf
+CFDIR=/usr/local/source/sendmail*/cf/m4
+/usr/bin/m4 $CFDIR/cf.m4 bleach.mc > sendmail.cf
+/usr/bin/m4 $CFDIR/cf.m4 submit.mc > submit.cf
+cp /etc/mail/sendmail.cf /etc/mail/sendmail.cf.orig
+cp /etc/mail/submit.cf /etc/mail/submit.cf.orig
+cp sendmail.cf /etc/mail/sendmail.cf
+cp submit.cf /etc/mail/submit.cf

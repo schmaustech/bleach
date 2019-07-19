@@ -1,0 +1,205 @@
+#!/usr/bin/perl
+#########################################################################
+#									#
+# Bleach (install) Version 1.0						#
+#									#
+# Bleach installation script.						#
+#									#
+# Copyright (C) 2002-2004 Benjamin Schmaustech				#
+#									#
+# This program may be distributed under the terms of the GNU General	#
+# Public License, Version 2, or (at your option) any later version.	#
+#									#
+# This program was written from scratch.				#
+#									#
+#########################################################################
+require DBI;
+$search1="96?sas?b";
+$search2="O InputMailFilters=mimedefang";
+$search3="Xmimedefang";
+$replace2="#O InputMailFilters=mimedefang";
+$replace3="#Xmimedefang";
+$dsn="DBI:mysql:database=mysql";
+print "\n";
+print "        Welcome to Bleach\n";
+print "\n";
+print "Select from the following choices\n";
+print "\n";
+print "1) Install Bleach\n";
+print "\n";
+print "2) Install Another Customer into Bleach\n";
+print "\n";
+print "3) Upgrade Bleach\n";
+print "\n";
+print "Enter your selection : ";
+chomp ($choice=<>);
+if ($choice eq "1") {
+	install();
+} elsif ($choice eq "2") {
+	customer();
+} elsif ($choice eq "3") {
+	upgrade();
+}
+exit;
+
+sub install {
+	print "\n";
+	print "You have selected to preform a clean install of Bleach\n";
+	print "\n";
+	print "I have read the README and my computer meets the\n";
+	print "configuration requirements (Y/N) : ";
+	chomp ($answer=<>);
+	if (($answer =~ /y/) || ($answer =~ /Y/)) {
+		print "Enter the MySQL database user that will be used for Bleach: ";
+		chomp ($dbu = <>);
+		print "Enter the password for $dbu: ";
+		chomp ($dbp = <>);
+		print "Enter the domain for the initial customer : ";
+		chomp ($domain = <>);
+		print "Enter the 12 character validator ID for initial customer : ";
+		chomp ($validator = <>);
+		print "Enter the Bleach admin username you would like to use: ";
+		chomp ($username = <>);
+		print "Enter the password for $username: ";
+		chomp ($password = <>);
+		print "Enter the user authentication server domain name (ex. pop3.domain.com): ";
+		chomp ($authserver = <>);
+		$authtype="1";
+		$authport="110";
+		print "Installing the database tables and schema...\n";
+		print "\n";
+		$dbh = DBI->connect($dsn,$dbu,$dbp) or die "Failure";
+		$dbh->do("drop database spam");
+		$dbh->do("create database spam");
+		$dbh->do("use spam");
+		$dbh->do("create table customer (customer varchar(255),username varchar(255),password varchar(255),validator varchar(12),aux1 char(2),aux2 char(2))");
+		$dbh->do("create table configuration (customer varchar(255),filter char(2),action varchar(3),thresh varchar(3),discard char(2),qage char(2),evirus char(2), attach char(2),enavirus char(2), over char(2), ssm char(2), visize varchar(15), ssma char(2), redhtml char(2), qesh char(2), qesb char(2), aado char(2), aadot char(3), addot char(3), addo char(2), overact char(2))");
+		$dbh->do("create table domain (customer varchar(255),domain varchar(255),flag char(1))");
+		$dbh->do("create table extensions (customer varchar(255),extension char(3))");
+		$dbh->do("create table quarantine (customer varchar(255),predate varchar(30),recipient varchar(255),sender varchar(255),subject varchar(255),score char(4))");
+		$dbh->do("create table tmpdb (customer varchar(255),aux1 varchar(255),aux2 varchar(255),aux3 varchar(255),aux4 varchar(255))");
+		$dbh->do("create table userlist (customer varchar(255),user varchar(255),aux1 char(1))");
+		$dbh->do("create table counters (emails int(4),quarantine int(4),discards int(4),virus int(4),customer varchar(255))");
+		$dbh->do("create table userdomain (customer varchar(255),domain varchar(255),flag char(1))");
+		$dbh->do("create table userprefs (customer varchar(255),filter char(2),action char(2),thresh char(2),discard char(2),qage char(2),aux1 char(2), aux2 char(2),aux3 char(2))");
+        	$dbh->do("create table subject (customer varchar(255),subject varchar(255))");
+		$dbh->do("create table tmpaccess (customer varchar(255))");
+		$dbh->do("insert into counters values(0,0,0,0,'TOTAL')");
+		$dbh->do("insert into counters values(0,0,0,0,'$domain')");
+		$dbh->do("insert into customer values ('$domain','$username','$password','$validator','0','0')");
+		$dbh->do("create table authentication (customer varchar(255),authtype char(2),authserver varchar(255),authport varchar(10))");
+		$dbh->do("insert into authentication values ('$domain','$authtype','$authserver','$authport')");
+		$dbh->disconnect;
+		print "Copying files to system locations...\n";
+		print "\n";
+		system ("/bin/cp -R /usr/local/bleach/htdocs/* /usr/local/apache/htdocs/");
+		system ("/bin/sed 's/$search1/$dbp/g' /usr/local/bleach/cgi-bin/bleach.cgi>/usr/local/apache/cgi-bin/bleach.cgi");
+		system ("/bin/sed 's/$search1/$dbp/g' /usr/local/bleach/configs/mimedefang-filter>/etc/mail/mimedefang-filter");
+		system ("/bin/cp /usr/local/bleach/configs/sa-mimedefang.cf /etc/mail/spamassassin/sa-mimedefang.cf");
+		system ("/bin/cp /usr/local/bleach/configs/local.cf /etc/mail/spamassassin/local.cf");
+		system ("/bin/sed 's/$search1/$dbp/g' /usr/local/bleach/bleach>/usr/local/bleach/bleach.tmp");
+		system ("/bin/mv /usr/local/bleach/bleach.tmp /usr/local/bleach/bleach");
+		system ("/bin/sed 's/$search2/$replace2/g' /etc/mail/sendmail.cf>/usr/local/bleach/configs/sendmail.tmp");
+		system ("/bin/sed 's/$search3/$replace3/g' /usr/local/bleach/configs/sendmail.tmp>/usr/local/bleach/configs/sendmail.cf");
+		system ("/bin/chown nobody:nobody /usr/local/apache/cgi-bin/*");
+		system ("/bin/chown nobody:nobody /usr/local/bleach/configs/*");
+		system ("/bin/chmod 555 /usr/local/apache/cgi-bin/*");
+		system ("/bin/chmod 755 /usr/local/bleach/bleach");
+		system ("/bin/rm -f /usr/local/bleach/configs/sendmail.tmp");
+		system ("/bin/touch /var/log/spamfilter.log");
+		system ("/bin/echo 'local4.*                                                /var/log/spamfilter.log'>>/etc/syslog.conf");
+		system ("/bin/echo '0 1 * * * /usr/local/bleach/bleach K'>>/var/spool/cron/root");
+		system ("/bin/chmod 777 /tmpfs");
+		system ("/bin/chown defang:nobody /tmpfs");
+                print "Restarting services...\n";
+                print "\n";
+		system ("/etc/init.d/crond restart");
+		system ("/etc/init.d/syslog restart");
+		system ("/etc/init.d/sendmail restart");
+		print "Installation Successful!\n";
+	} else {
+		print "\n";
+		print "Installation Aborted!\n";
+	}
+	exit;
+}
+
+sub customer {
+	print "\n";
+	print "You have selected to install another customer into Bleach\n";
+	print "\n";
+	print "I have read the README and my computer meets the\n";
+	print "configuration requirements (Y/N) : ";
+	chomp ($answer=<>);
+	if (($answer =~ /y/) || ($answer =~ /Y/)) {
+		print "Enter the MySQL database user that will be used for Bleach: ";
+		chomp ($dbu = <>);
+		print "Enter the password for $dbu: ";
+		chomp ($dbp = <>);
+		print "Enter the domain for the customer : ";
+		chomp ($domain = <>);
+		print "Enter the 12 character validator ID for initial customer : ";
+		chomp ($validator = <>);
+		print "Enter the Bleach interface username you would like to use: ";
+		chomp ($username = <>);
+		print "Enter the password for $username: ";
+		chomp ($password = <>);
+		print "Installing customer into the database tables...\n";
+		print "\n";
+		$dbh = DBI->connect($dsn,$dbu,$dbp) or die "Failure";
+		$dbh->do("use spam");
+		$dbh->do("insert into counters values(0,0,0,0,'TOTAL')");
+		$dbh->do("insert into counters values(0,0,0,0,'$domain')");
+		$dbh->do("insert into customer values ('$domain','$username','$password','$validator','0','0')");
+		$dbh->disconnect;
+		print "Installation Successful!\n";
+	} else {
+		print "\n";
+		print "Installation Aborted!\n";
+	}
+	exit;
+}
+
+sub upgrade {
+	print "\n";
+	print "You have selected to upgrade the current version of Bleach\n";
+	print "\n";
+	print "I have read the README and my computer meets the\n";
+	print "configuration requirements (Y/N) : ";
+	chomp ($answer=<>);
+	if (($answer =~ /y/) || ($answer =~ /Y/)) {
+		print "Enter the password for Root for the MySQL database: ";
+		chomp ($dbp = <>);
+		print "Copying files to system locations...\n";
+		print "\n";
+		system ("/bin/cp -R /usr/local/bleach/htdocs/* /usr/local/apache/htdocs/");
+		system ("/bin/sed 's/$search1/$dbp/g' /usr/local/bleach/cgi-bin/config.cgi>/usr/local/apache/cgi-bin/config.cgi");
+		system ("/bin/sed 's/$search1/$dbp/g' /usr/local/bleach/cgi-bin/login.cgi>/usr/local/apache/cgi-bin/login.cgi");
+		system ("/bin/sed 's/$search1/$dbp/g' /usr/local/bleach/cgi-bin/logout.cgi>/usr/local/apache/cgi-bin/logout.cgi");
+		system ("/bin/sed 's/$search1/$dbp/g' /usr/local/bleach/cgi-bin/quarantine.cgi>/usr/local/apache/cgi-bin/quarantine.cgi");
+		system ("/bin/sed 's/$search1/$dbp/g' /usr/local/bleach/cgi-bin/status.cgi>/usr/local/apache/cgi-bin/status.cgi");
+		system ("/bin/sed 's/$search1/$dbp/g' /usr/local/bleach/cgi-bin/userquarantine.cgi>/usr/local/apache/cgi-bin/userquarantine.cgi");
+		system ("/bin/sed 's/$search1/$dbp/g' /usr/local/bleach/configs/mimedefang-filter>/etc/mail/mimedefang-filter");
+		system ("/bin/cp /usr/local/bleach/configs/sa-mimedefang.cf /etc/mail/spamassassin/sa-mimedefang.cf");
+		system ("/bin/cp /usr/local/bleach/configs/local.cf /etc/mail/spamassassin/local.cf");
+		system ("/bin/sed 's/$search1/$dbp/g' /usr/local/bleach/bleach>/usr/local/bleach/bleach.tmp");
+		system ("/bin/mv /usr/local/bleach/bleach.tmp /usr/local/bleach/bleach");
+		system ("/bin/sed 's/$search2/$replace2/g' /etc/mail/sendmail.cf>/usr/local/bleach/configs/sendmail.tmp");
+		system ("/bin/sed 's/$search3/$replace3/g' /usr/local/bleach/configs/sendmail.tmp>/usr/local/bleach/configs/sendmail.cf");
+		system ("/bin/chown nobody:nobody /usr/local/apache/cgi-bin/*");
+		system ("/bin/chown nobody:nobody /usr/local/bleach/configs/*");
+		system ("/bin/chmod 555 /usr/local/apache/cgi-bin/*");
+		system ("/bin/chmod 755 /usr/local/bleach/bleach");
+		system ("/bin/rm -f /usr/local/bleach/configs/sendmail.tmp");
+		system ("/bin/chmod 777 /tmpfs");
+                system ("/bin/chown defang:nobody /tmpfs");
+                print "Copying files to system locations...\n";
+                print "\n";
+		system ("/etc/init.d/sendmail restart");
+		print "Upgrade Successful!\n";
+	} else {
+		print "\n";
+		print "Upgrade Aborted!\n";
+	}
+	exit;
+}

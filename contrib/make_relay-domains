@@ -1,0 +1,4 @@
+#!/usr/bin/perl
+system("makemap hash relay-domains.db<relay-domains");
+print "Relay-domains Table Rebuilt\n";
+exit;

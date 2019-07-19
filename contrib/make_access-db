@@ -1,0 +1,4 @@
+#!/usr/bin/perl
+system("makemap hash access.db<access");
+print "Access database Table Rebuilt\n";
+exit;

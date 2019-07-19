@@ -1,0 +1,180 @@
+#!/bin/bash
+#
+# sendmail      This shell script takes care of starting and stopping
+#               sendmail.
+#
+# description: Sendmail is a Mail Transport Agent, which is the program \
+#              that moves mail from one machine to another.
+# processname: sendmail
+# config: /etc/sendmail.cf
+# pidfile: /var/run/sendmail.pid
+
+# This file is a slightly modified version of the standard script provided
+# by Red Hat.  It starts and stops MIMEDefang along with Sendmail.  It
+# also uses the mimedefang-multiplexor program to manage a pool of
+# filter processes
+
+# Source function library.
+. /etc/rc.d/init.d/functions
+
+# Source networking configuration.
+. /etc/sysconfig/network
+
+# Source sendmail configuration.
+if [ -f /etc/sysconfig/sendmail ] ; then
+        . /etc/sysconfig/sendmail
+else
+        DAEMON=no
+        QUEUE=5m
+fi
+
+# Defaults if not set in /etc/sysconfig/mimedefang
+MAX_SLAVES=100
+MIN_SLAVES=6
+BUSY_TIMEOUT=50
+IDLE_TIMEOUT=300
+
+# Uncomment next line to log stats
+# STATS_LOG="-t /var/log/md-stats"
+
+# Uncomment next line to flush stats file after each write
+# FLUSH_STATS=-u
+
+# Comment next line out if you do not want multiplexor to log messages
+# to syslog
+# DO_LOGGING=-l
+
+# Uncomment next line to enable relay check
+# RELAY_CHECK=-r
+
+# Uncomment next line to enable sender check
+# SENDER_CHECK=-s
+
+# Source MIMEDefang configuration
+if [ -f /etc/sysconfig/mimedefang ] ; then
+. /etc/sysconfig/mimedefang
+fi
+
+# Check that networking is up.
+[ ${NETWORKING} = "no" ] && exit 0
+
+[ -f /usr/sbin/sendmail ] || exit 0
+
+RETVAL=0
+prog="sendmail"
+
+MIMEDEFANG=/usr/local/bin/mimedefang
+MULTIPLEX=/usr/local/bin/mimedefang-multiplexor
+
+[ -x $MIMEDEFANG ] || exit 1
+[ -x $MULTIPLEX  ] || exit 1
+
+start() {
+#Start daemons.
+
+       /usr/bin/newaliases > /dev/null 2>&1
+        for i in virtusertable access domaintable mailertable ; do
+          if [ -f /etc/mail/$i ] ; then
+                makemap hash /etc/mail/$i < /etc/mail/$i
+          fi
+        done
+        rm -f /var/spool/MIMEDefang/mimedefang.sock
+        rm -f /var/spool/MIMEDefang/mdefang-mx.sock
+
+# Start multiplexor
+        echo -n "Starting mimedefang-multiplexor: "
+        daemon $MULTIPLEX -l -x $MAX_SLAVES \
+            -m $MIN_SLAVES \
+            -b $BUSY_TIMEOUT \
+            -i $IDLE_TIMEOUT \
+            $DO_LOGGING $STATS_LOG $FLUSH_STATS \
+            -s /var/spool/MIMEDefang/mdefang-mx.sock -p /var/spool/MIMEDefang/mdefang-mx.pid -U defang
+        RETVAL=$?
+        echo ""
+        [ $RETVAL -ne 0 ] && exit 1
+
+        echo -n "Starting mimedefang: "
+        daemon $MIMEDEFANG -m /var/spool/MIMEDefang/mdefang-mx.sock \
+            -p /var/spool/MIMEDefang/mimedefang.sock $SENDER_CHECK $RELAY_CHECK \
+            -P /var/spool/MIMEDefang/mimedefang.pid -U defang
+        RETVAL=$?
+        echo ""
+        [ $RETVAL -ne 0 ] && exit 1
+
+        echo -n $"Starting $prog: "
+        daemon /usr/sbin/sendmail -bd \
+                                  $([ -n "$QUEUE" ] && echo -q$QUEUE)
+        RETVAL=$?
+        echo
+        [ $RETVAL -eq 0 ] && touch /var/lock/subsys/sendmail
+
+	if ! test -f /var/run/sm-client.pid ; then
+        echo -n $"Starting sm-client: "
+        touch /var/run/sm-client.pid
+        chown smmsp:smmsp /var/run/sm-client.pid
+        daemon --check sm-client /usr/sbin/sendmail -L sm-msp-queue -Ac \
+                                $([ -n "$QUEUE" ] && echo -q$QUEUE)
+        RETVAL=$?
+        echo
+        [ $RETVAL -eq 0 ] && touch /var/lock/subsys/sm-client
+        fi
+
+	return $RETVAL
+}
+
+stop() {
+        # Stop daemons.
+        echo -n $"Shutting down $prog: "
+        killproc sendmail
+        RETVAL=$?
+	echo
+        echo -n "Shutting down mimedefang: "
+        killproc $MIMEDEFANG
+        echo
+        echo -n "Shutting down mimedefang-multiplexor: "
+        killproc $MULTIPLEX
+        echo
+        [ $RETVAL -eq 0 ] && rm -f /var/lock/subsys/sendmail
+        if test -f /var/run/sm-client.pid ; then
+                echo -n $"Shutting down sm-client: "
+                killproc sendmail
+                RETVAL=$?
+                echo
+                [ $RETVAL -eq 0 ] && rm -f /var/run/sm-client.pid
+                [ $RETVAL -eq 0 ] && rm -f /var/lock/subsys/sm-client
+        fi
+        return $RETVAL
+}
+
+case "$1" in
+  start)
+        start
+        ;;
+  stop)
+        stop
+        ;;
+  restart|reload)
+        stop
+        start
+        RETVAL=$?
+        ;;
+  condrestart)
+        if [ -f /var/lock/subsys/sendmail ]; then
+            stop
+            start
+            RETVAL=$?
+        fi
+        ;;
+  status)
+        status sendmail
+        status $MIMEDEFANG
+        status $MULTIPLEX
+        RETVAL=$?
+        ;;
+  *)
+        echo $"Usage: $0 {start|stop|restart|condrestart|status}"
+        exit 1
+esac
+
+exit $RETVAL
+

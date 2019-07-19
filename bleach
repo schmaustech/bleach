@@ -1,0 +1,272 @@
+#!/usr/bin/perl
+#########################################################################
+#                                                                       #
+# SpamScout (core) Version 3.3                                          #       
+#                                                                       #
+# SpamScout background processing script.                               #
+#                                                                       #
+# Copyright (C) 2002-2004 Benjamin Schmaus & Sara Schmaus - SchmausTech #
+#                                                                       #
+# This program may be distributed under the terms of the GNU General    #
+# Public License, Version 2, or (at your option) any later version.     #
+#                                                                       #
+# This program was written from scratch.                                #
+#                                                                       #
+#########################################################################
+require DBI;
+require GD::Graph::pie;
+$dsn="DBI:mysql:database=spam";
+$dbu="root";
+$dbp="96?sas?b";
+if ($ARGV[0] eq "B") {
+	spam1();
+}
+
+if ($ARGV[0] eq "C") {
+	spam2();
+}
+
+if ($ARGV[0] eq "D") {
+	spam3();
+}
+
+if ($ARGV[0] eq "E") {
+	spam4();
+}
+
+if ($ARGV[0] eq "F") {
+	spam5();
+}
+
+if ($ARGV[0] eq "G") {
+	spam6();
+}
+
+if ($ARGV[0] eq "H") {
+        spam2();
+}
+
+if ($ARGV[0] eq "I") {
+        spam7();
+}
+
+if ($ARGV[0] eq "J") {
+	spam8();
+}
+
+if ($ARGV[0] eq "K") {
+        spam10();
+}
+
+spam9();
+exit;
+
+sub spam1 {
+        $dbh = DBI->connect($dsn,$dbu,$dbp) or die "Access Failed";
+        $sth = $dbh->prepare("select aux1 from tmpdb where customer='$ARGV[1]'");
+        $sth->execute();
+        ($dir)=$sth->fetchrow_array();
+	system ("/bin/rm -r -f /var/spool/MIMEDefang/'$dir'");
+	$sth->finish();
+	$dbh->do("DELETE FROM quarantine where predate= '$dir'");	
+        $dbh->disconnect;
+	exit;
+}
+
+sub spam3 {
+	system ("/etc/init.d/sendmail restart");
+	exit;
+}
+
+sub spam4 {
+	system ("reboot");
+	exit;
+}
+
+sub spam5 {
+	system ("init 0");
+	exit;
+}
+
+sub spam6 {
+        $dbh = DBI->connect($dsn,$dbu,$dbp) or die "Access Failed";
+        $sth = $dbh->prepare("select aux1 from tmpdb where customer='$ARGV[1]'");
+        $sth->execute();
+        ($search)=$sth->fetchrow_array();
+        $sth->finish();
+	if ($search ne "") {
+		$sth = $dbh->prepare("select * from quarantine where (customer = '$ARGV[1]') AND ((recipient like '%$search%') OR (sender like '%$search%') OR (subject like '%$search%'))");
+		$sth->execute();
+		while (($aux1,$predate,$recipient,$sender,$subject,$aux2)=$sth->fetchrow_array()) {
+			system ("/bin/rm -r -f /var/spool/MIMEDefang/$predate");
+			$dbh->do("DELETE FROM quarantine where predate= '$predate'");
+		}
+		$sth->finish();
+		$dbh->do("DELETE FROM quarantine where predate= '$predate'");
+	}
+	if ($search eq "") {
+		$sth = $dbh->prepare("select * from quarantine where customer='$ARGV[1]'");
+		$sth->execute();
+		while (($aux1,$predate,$recipient,$sender,$subject,$aux2)=$sth->fetchrow_array()) {
+			system ("/bin/rm -r -f /var/spool/MIMEDefang/$predate");
+			$dbh->do("DELETE FROM quarantine where predate= '$predate'");
+		}
+		$sth->finish();
+		$dbh->do("DELETE FROM quarantine where predate= '$predate'");
+	}
+	$dbh->disconnect;
+	exit;
+}
+
+sub spam7 {
+	open (TEXT,">/tmpfs/ENTIRE_MESSAGE.$ARGV[1]");
+	print (TEXT "This email does not contain a viewable message in SpamScout.\n");
+	print (TEXT "A copy of this email was quarantined for one of the following reasons:\n");
+	print (TEXT "\n");
+	print (TEXT "1) A possible virus.\n");
+	print (TEXT "2) Suspicious characters in the email headers.\n");
+	print (TEXT "3) A stripped off attachment that was a security hazard.\n");
+	print (TEXT "\n");
+	print (TEXT "The message was forwarded to the recipient corrected where possible.\n");
+	close (TEXT);
+	$dbh = DBI->connect($dsn,$dbu,$dbp) or die "Access Failed";
+	$sth = $dbh->prepare("select aux1 from tmpdb where customer='$ARGV[1]'");
+	$sth->execute();
+	($dir)=$sth->fetchrow_array();
+	$sth->finish();
+	$dbh->disconnect;
+        system ("/bin/cp /var/spool/MIMEDefang/'$dir'/ENTIRE_MESSAGE /tmpfs/ENTIRE_MESSAGE.'$ARGV[1]'");
+	system ("/bin/chown nobody:nobody /tmpfs/ENTIRE_MESSAGE.'$ARGV[1]'");
+	exit;
+}
+
+sub spam2 {
+        $dbh = DBI->connect($dsn,$dbu,$dbp) or die "Access Failed";
+        $sth = $dbh->prepare("select * from tmpdb where customer='$ARGV[1]'");
+        $sth->execute();
+        ($aux1,$dir,$recipient,$sender,$aux5)=$sth->fetchrow_array();
+	$sth->finish();
+	if ($ARGV[0] eq "C") {
+		system("/usr/lib/sendmail -f '$sender' '$recipient'</var/spool/MIMEDefang/$dir/ENTIRE_MESSAGE"); 
+	}
+	if ($ARGV[0] eq "H") {
+		system("/usr/lib/sendmail -f '$sender' -C /usr/local/bleach/configs/sendmail.cf '$recipient'</var/spool/MIMEDefang/$dir/ENTIRE_MESSAGE");
+	}
+	system ("/bin/rm -r -f /var/spool/MIMEDefang/'$dir'/*");
+	system ("/bin/rmdir /var/spool/MIMEDefang/'$dir'");
+	$dbh->do("DELETE FROM quarantine where predate= '$dir'");
+	$dbh->disconnect;
+	exit;
+}
+
+sub spam8 {
+	open (SYS,"pgrep sendmail|wc -l|");
+	$cleanmail = <SYS>;
+	close (SYS);
+	open (SYS,"pgrep httpd|wc -l|");
+	$apache = <SYS>;
+	close (SYS);
+	open (SYS,"pgrep mysqld|wc -l|");
+	$database = <SYS>;
+	close (SYS);
+	chomp ($cleanmail);
+	chomp ($apache);
+	chomp ($database);
+        if ($apache > 1) {
+                system ("cp /usr/local/apache/htdocs/gifs/ok.gif /usr/local/apache/htdocs/gifs/a1.gif");
+        } else {
+                system ("cp /usr/local/apache/htdocs/bullets/failed.gif /usr/local/apache/htdocs/gifs/a1.gif");
+        }
+
+	if ($cleanmail >= 2) {
+        	system ("cp /usr/local/apache/htdocs/gifs/ok.gif /usr/local/apache/htdocs/gifs/a2.gif");
+	} else {
+        	system ("cp /usr/local/apache/htdocs/gifs/failed.gif /usr/local/apache/htdocs/gifs/a2.gif");
+	}
+
+	if ($database > 0) {
+        	system ("cp /usr/local/apache/htdocs/gifs/ok.gif /usr/local/apache/htdocs/gifs/a3.gif");
+	} else {
+        	system ("cp /usr/local/apache/htdocs/gifs/failed.gif /usr/local/apache/htdocs/gifs/a3.gif");
+	}
+	($pemails,$pvirus,$pquarantine,$pdiscards,$pdemails,$pdvirus,$pdquarantine,$pddiscards)=split (/:/,$ARGV[1]);
+	$aemails = $pemails - ($pvirus+$pquarantine+$pdiscards);
+	$ademails = $pdemails - ($pdvirus+$pdquarantine+$pddiscards);
+	@data = (['Allowed', 'Viruses', 'Quarantined', 'Discards'],[$aemails,$pvirus,$pquarantine,$pdiscards]);
+	$mygraph = GD::Graph::pie->new(300, 300);
+	$mygraph->set( title => 'Statistics for Server','3d' => 1,) or warn $mygraph->error;
+	$mygraph->set_value_font(GD::gdMediumBoldFont);
+	open(IMG, '>/usr/local/apache/htdocs/gifs/server.png') or die $!;
+	binmode IMG;
+	print IMG $mygraph->plot(\@data)->png;
+	close (IMG);
+	@data = (['Allowed', 'Viruses', 'Quarantined', 'Discards'],[$ademails,$pdvirus,$pdquarantine,$pddiscards]);
+	$mygraph = GD::Graph::pie->new(300, 300);
+	$mygraph->set( title => 'Statistics for Domain','3d' => 1,) or warn $mygraph->error;
+	$mygraph->set_value_font(GD::gdMediumBoldFont);
+	open(IMG, '>/usr/local/apache/htdocs/gifs/domain.png') or die $!;
+	binmode IMG;
+	print IMG $mygraph->plot(\@data)->png;
+	close (IMG);
+	exit;
+}
+
+sub spam9 {
+	$dbh = DBI->connect($dsn,$dbu,$dbp) or die "Access Failed";
+	open (SYS,"/usr/bin/find /var/spool/MIMEDefang/ -type d -mtime +5|");
+	while (<SYS>) {
+        	chomp;
+        	$pest = $_;
+        	$pest =~ s/\.\///g;
+        	system ("/bin/rm -r -f $pest");
+        	$pest =~ s/\/var\/spool\/MIMEDefang\///g;
+        	$dbh->do("DELETE FROM quarantine where predate= '$pest'");
+	}
+	close (SYS);
+	$dbh->do("DELETE FROM tmpdb");
+	$dbh->do("DELETE FROM tmpaccess");
+        $sth = $dbh->prepare("select customer,qage from configuration");
+        $sth->execute();
+        while (($customer,$qage)=$sth->fetchrow_array()) {
+        	open (SYS,"/usr/bin/find /var/spool/MIMEDefang/ -type d -mtime +'$qage'|");
+        	while (<SYS>) {
+                	chomp;
+                	$pest = $_;
+                	$pest =~ s/\.\///g;
+                	$tomail = `/bin/grep @ $pest/RECIPIENTS 2>&1`;
+                	chomp ($tomail);
+                	$tomain =~ s/\n$|\>|\<|\#|To: |\&//g;
+                	$tomail =~ s/\s+/ /g;
+                	$tomail =~ tr/\000-\037//d;
+                	$tomail =~ tr/A-Z/a-z/;
+                	($check1,$check2)=split(/\@/,$tomail);
+                	if ($check2 eq $customer) {
+                        	system ("/bin/rm -r -f $pest");
+                        	$pest =~ s/\/var\/spool\/MIMEDefang\///g;
+                        	$dbh->do("DELETE FROM quarantine where predate= '$pest'");
+                	}
+        	}
+		close (SYS);	
+	}
+	$sth->finish();
+	$dbh->disconnect;
+}
+
+sub spam10 {
+        $dbh = DBI->connect($dsn,$dbu,$dbp) or die "Access Failed";
+        $sth = $dbh->prepare("select aux1 from tmpdb where customer='$ARGV[1]'");
+        $sth->execute();
+        ($search)=$sth->fetchrow_array();
+        $sth->finish();
+        $sth = $dbh->prepare("select * from quarantine where (customer = '$ARGV[1]') AND (recipient like '%$search%')");
+        $sth->execute();
+        while (($aux1,$predate,$recipient,$sender,$subject,$aux2)=$sth->fetchrow_array()) {
+                system ("/bin/rm -r -f /var/spool/MIMEDefang/$predate");
+                $dbh->do("DELETE FROM quarantine where predate= '$predate'");
+        }
+        $sth->finish();
+        $dbh->do("DELETE FROM quarantine where predate= '$predate'");
+        $dbh->disconnect;
+        exit;
+}
+

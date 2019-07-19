@@ -1,0 +1,4 @@
+#!/usr/bin/perl
+system("makemap hash mailertable.db<mailertable");
+print "Mailertable database Table Rebuilt\n";
+exit;

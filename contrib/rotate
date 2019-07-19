@@ -1,0 +1,20 @@
+#!/bin/sh
+PATH=/logs
+cd $PATH
+while read WEB
+do
+/bin/cp $PATH/$WEB.11 $PATH/$WEB.12
+/bin/cp $PATH/$WEB.10 $PATH/$WEB.11
+/bin/cp $PATH/$WEB.9 $PATH/$WEB.10
+/bin/cp $PATH/$WEB.8 $PATH/$WEB.9
+/bin/cp $PATH/$WEB.7 $PATH/$WEB.8
+/bin/cp $PATH/$WEB.6 $PATH/$WEB.7
+/bin/cp $PATH/$WEB.5 $PATH/$WEB.6
+/bin/cp $PATH/$WEB.4 $PATH/$WEB.5
+/bin/cp $PATH/$WEB.3 $PATH/$WEB.4
+/bin/cp $PATH/$WEB.2 $PATH/$WEB.3
+/bin/cp $PATH/$WEB.1 $PATH/$WEB.2
+/bin/cp $PATH/$WEB $PATH/$WEB.1
+/bin/cp /dev/null $PATH/$WEB
+done<list.conf
+

@@ -1,0 +1,10 @@
+#!/usr/bin/perl
+system("makemap hash access.db<access");
+print "Access Database Table Rebuilt\n";
+system("makemap hash mailertable.db<mailertable");
+print "Mailertable Database Table Rebuilt\n";
+system("makemap hash virtusertable.db<virtusertable");
+print "Virtualusertable Database Table Rebuilt\n";
+system("makemap hash domaintable.db<domaintable");
+print "Domaintable Database Table Rebuilt\n";
+exit;

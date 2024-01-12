@@ -73,7 +73,7 @@ sub install {
 		$dbh->do("create database spam");
 		$dbh->do("use spam");
 		$dbh->do("create table customer (customer varchar(255),username varchar(255),password varchar(255),validator varchar(12),aux1 char(2),aux2 char(2))");
-		$dbh->do("create table configuration (customer varchar(255),filter char(2),action varchar(3),thresh varchar(3),discard char(2),qage char(2),evirus char(2), attach char(2),enavirus char(2), over char(2), ssm char(2), visize varchar(15), ssma char(2), redhtml char(2), qesh char(2), qesb char(2), aado char(2), aadot char(3), addot char(3), addo char(2), overact char(2))");
+		$dbh->do("create table configuration (customer varchar(255),filter char(2),action varchar(3),thresh varchar(3),discard char(2),qage char(2),evirus char(2),attach char(2),enavirus char(2),over char(2),ssm char(2),visize varchar(15),ssma char(2),redhtml char(2),qesh char(2),qesb char(2),aado char(2),aadot char(3),addot char(3),addo char(2),overact char(2))");
 		$dbh->do("create table domain (customer varchar(255),domain varchar(255),flag char(1))");
 		$dbh->do("create table extensions (customer varchar(255),extension char(3))");
 		$dbh->do("create table quarantine (customer varchar(255),predate varchar(30),recipient varchar(255),sender varchar(255),subject varchar(255),score char(4))");

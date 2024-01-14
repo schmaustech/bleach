@@ -15,7 +15,7 @@
 use DBI;
 $dsn="DBI:mysql:database=spam";
 $dbu="root";
-$dbp="T0925!cm!sql1";
+$dbp="96?sas?b!";
 $AdminAddress = 'bleach@bleach.schmaustech.com';
 $AdminName = 'Bleach Administrator';
 $DaemonAddress = 'smmsp@bleach.schmaustech.com';
@@ -306,7 +306,7 @@ sub filter_end ($) {
 			($junk,$sdomain)=split(/\@/,$Sender);
 			$dbh->do("update counters set emails=emails+1 where customer='TOTAL'");
 			$dbh->do("update counters set emails=emails+1 where customer='$tdomain'");
-                        $sth = $dbh->prepare("select filter,action,thresh,discard,over,ssm,ssma,redhtml,aado,aadot,addot,addo,overact from configuration where customer='$tdomain'");
+                        $sth = $dbh->prepare("select filter,action,thresh,discard,`over`,ssm,ssma,redhtml,aado,aadot,addot,addo,overact from configuration where customer='$tdomain'");
                         $sth->execute();
                         ($cfilter,$caction,$domainhits1,$domainhits2,$override,$submat,$submata,$redhtml,$aado,$aadot,$addot,$addo,$overact)=$sth->fetchrow_array();
                         $sth->finish();
